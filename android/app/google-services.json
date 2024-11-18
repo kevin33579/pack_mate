@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "469454593920",
+    "project_id": "packmate-c344f",
+    "storage_bucket": "packmate-c344f.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:469454593920:android:e44b9d2de81d19ec64ab65",
+        "android_client_info": {
+          "package_name": "com.android.application"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAZBLIhL7cPGkftcZqk9oPZD2zbETgWDnc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:469454593920:android:439eaedf285558f064ab65",
+        "android_client_info": {
+          "package_name": "com.example.pack_mate"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAZBLIhL7cPGkftcZqk9oPZD2zbETgWDnc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
