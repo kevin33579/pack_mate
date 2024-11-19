@@ -42,72 +42,98 @@ class AddPartyViewModel {
     final String mountName = mountNameController.text.trim();
     final String partyCode = partyCodeController.text.trim();
 
-    final User? currentUser = FirebaseAuth.instance.currentUser;
-    if (currentUser == null) {
+    if (partyCode.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No user is logged in')),
+        const SnackBar(content: Text('Party Code cannot be empty')),
       );
       return;
     }
 
-    final String userId = currentUser.uid;
-
     FirebaseFirestore.instance
-        .collection('users')
-        .doc(userId)
+        .collection('parties')
+        .where('partyCode', isEqualTo: partyCode)
         .get()
-        .then((userDoc) {
-      if (!userDoc.exists) {
+        .then((querySnapshot) {
+      if (querySnapshot.docs.isNotEmpty) {
+        // Party code already exists
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('User details not found')),
+          const SnackBar(content: Text('Party Code already exists')),
         );
         return;
       }
 
-      final userData = userDoc.data()!;
-      final memberData = {
-        'firstName': userData['firstName'] ?? '',
-        'lastName': userData['lastName'] ?? '',
-        'phoneNumber': userData['phoneNumber'] ?? '',
-        'email': userData['email'] ?? '',
-        'role': 'leader',
-      };
+      // If Party Code is unique, proceed to save
+      final User? currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No user is logged in')),
+        );
+        return;
+      }
 
-      final partyData = {
-        'partyName': partyName,
-        'mountName': mountName,
-        'startDate': startDateString,
-        'endDate': endDateString,
-        'isCamping': isPressedCamping,
-        'isCooking': isPressedCooking,
-        'partyCode': partyCode,
-        'isFinish': false,
-        'sharedItems': [],
-      };
+      final String userId = currentUser.uid;
 
       FirebaseFirestore.instance
-          .collection('parties')
-          .add(partyData)
-          .then((partyRef) {
-        partyRef.collection('members').doc(userId).set(memberData).then((_) {
+          .collection('users')
+          .doc(userId)
+          .get()
+          .then((userDoc) {
+        if (!userDoc.exists) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-                content: Text('Party and member saved successfully!')),
+            const SnackBar(content: Text('User details not found')),
           );
-          Navigator.pop(context);
+          return;
+        }
+
+        final userData = userDoc.data()!;
+        final memberData = {
+          'firstName': userData['firstName'] ?? '',
+          'lastName': userData['lastName'] ?? '',
+          'phoneNumber': userData['phoneNumber'] ?? '',
+          'email': userData['email'] ?? '',
+          'role': 'leader',
+        };
+
+        final partyData = {
+          'partyName': partyName,
+          'mountName': mountName,
+          'startDate': startDateString,
+          'endDate': endDateString,
+          'isCamping': isPressedCamping,
+          'isCooking': isPressedCooking,
+          'partyCode': partyCode,
+          'isFinish': false,
+          'sharedItems': [],
+        };
+
+        FirebaseFirestore.instance
+            .collection('parties')
+            .add(partyData)
+            .then((partyRef) {
+          partyRef.collection('members').doc(userId).set(memberData).then((_) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                  content: Text('Party and member saved successfully!')),
+            );
+            Navigator.pop(context);
+          }).catchError((e) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Failed to save member data: $e')),
+            );
+          });
         }).catchError((e) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to save member data: $e')),
+            SnackBar(content: Text('Failed to save party: $e')),
           );
         });
       }).catchError((e) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to save party: $e')),
+          SnackBar(content: Text('Error fetching user data: $e')),
         );
       });
     }).catchError((e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error fetching user data: $e')),
+        SnackBar(content: Text('Error checking Party Code: $e')),
       );
     });
   }

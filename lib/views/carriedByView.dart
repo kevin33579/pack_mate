@@ -5,33 +5,18 @@ class CarriedBy extends StatelessWidget {
   final String itemId;
   final String itemName;
 
-  CarriedBy(
-      {required this.partyId, required this.itemId, required this.itemName});
+  final CarriedByViewModel viewModel = CarriedByViewModel();
 
-  Stream<List<Map<String, dynamic>>> _getProviders() {
-    return FirebaseFirestore.instance
-        .collection('parties')
-        .doc(partyId)
-        .collection('sharedItems')
-        .doc(itemId)
-        .collection('carriedBy')
-        .snapshots()
-        .asyncMap((snapshot) async {
-      List<Map<String, dynamic>> allProviders = [];
-
-      for (var doc in snapshot.docs) {
-        var userData = doc.data();
-        if (userData != null) {
-          allProviders.add(userData);
-        }
-      }
-
-      return allProviders;
-    });
-  }
+  CarriedBy({
+    required this.partyId,
+    required this.itemId,
+    required this.itemName,
+  });
 
   @override
   Widget build(BuildContext context) {
+    viewModel.initialize(partyId: partyId, itemId: itemId);
+
     return Scaffold(
       appBar: AppBar(
         title: Text('Carrier'),
@@ -60,7 +45,7 @@ class CarriedBy extends StatelessWidget {
         ],
       ),
       body: StreamBuilder<List<Map<String, dynamic>>>(
-        stream: _getProviders(),
+        stream: viewModel.providersStream,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return Center(child: CircularProgressIndicator());

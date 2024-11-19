@@ -11,120 +11,20 @@ class ProvidedBy extends StatelessWidget {
     required this.itemName,
   });
 
-  Stream<List<Map<String, dynamic>>> _getProviders() {
-    return FirebaseFirestore.instance
-        .collection('parties')
-        .doc(partyId)
-        .collection('sharedItems')
-        .doc(itemId)
-        .collection('provideBy')
-        .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => {
-                  'id': doc.id,
-                  ...doc.data(),
-                })
-            .toList());
-  }
-
-  void _editProvider(BuildContext context, String providerId,
-      String currentName, int currentTotal) {
-    final totalController =
-        TextEditingController(text: currentTotal.toString());
-    String? selectedName;
-    List<String> memberNames = [];
-
-    FirebaseFirestore.instance
-        .collection('parties')
-        .doc(partyId)
-        .collection('members')
-        .get()
-        .then((snapshot) {
-      memberNames =
-          snapshot.docs.map((doc) => doc['firstName'] as String).toList();
-      if (selectedName == null) selectedName = currentName;
-    });
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text("Edit"),
-        content: StatefulBuilder(
-          builder: (context, setState) {
-            return Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: totalController,
-                  decoration: InputDecoration(labelText: 'Total'),
-                  keyboardType: TextInputType.number,
-                ),
-              ],
-            );
-          },
-        ),
-        actions: [
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text("Cancel"),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              final newName = selectedName ?? currentName;
-              final newTotal =
-                  int.tryParse(totalController.text.trim()) ?? currentTotal;
-
-              FirebaseFirestore.instance
-                  .collection('parties')
-                  .doc(partyId)
-                  .collection('sharedItems')
-                  .doc(itemId)
-                  .collection('provideBy')
-                  .doc(providerId)
-                  .update({
-                'name': newName,
-                'total': newTotal,
-              }).then((_) => Navigator.pop(context));
-            },
-            child: Text("Save"),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _deleteProvider(BuildContext context, String providerId) {
-    FirebaseFirestore.instance
-        .collection('parties')
-        .doc(partyId)
-        .collection('sharedItems')
-        .doc(itemId)
-        .collection('provideBy')
-        .doc(providerId)
-        .delete()
-        .then((_) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Provider deleted successfully')),
-      );
-    }).catchError((error) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to delete provider: $error')),
-      );
-    });
-  }
+  final ProvidedByViewModel viewModel = ProvidedByViewModel();
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Providers'),
+        title: const Text('Providers'),
         leading: IconButton(
-          icon: Icon(Icons.arrow_back),
+          icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
           IconButton(
-            icon: Icon(Icons.add),
+            icon: const Icon(Icons.add),
             onPressed: () {
               Navigator.push(
                 context,
@@ -141,13 +41,13 @@ class ProvidedBy extends StatelessWidget {
         ],
       ),
       body: StreamBuilder<List<Map<String, dynamic>>>(
-        stream: _getProviders(),
+        stream: viewModel.getProviders(partyId, itemId),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return Center(child: CircularProgressIndicator());
+            return const Center(child: CircularProgressIndicator());
           }
           if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return Center(child: Text("No providers found."));
+            return const Center(child: Text("No providers found."));
           }
 
           final providers = snapshot.data!;
@@ -160,28 +60,39 @@ class ProvidedBy extends StatelessWidget {
               final providerTotal = provider['total'] ?? 0;
 
               return Card(
-                margin: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 child: ListTile(
                   title: Text(
                     providerName,
-                    style: TextStyle(fontWeight: FontWeight.bold),
+                    style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                   subtitle: Text('Total: $providerTotal'),
                   trailing: PopupMenuButton<String>(
                     onSelected: (value) {
                       if (value == 'edit') {
-                        _editProvider(
-                            context, providerId, providerName, providerTotal);
+                        viewModel.editProvider(
+                          context,
+                          partyId: partyId,
+                          itemId: itemId,
+                          providerId: providerId,
+                          currentName: providerName,
+                          currentTotal: providerTotal,
+                        );
                       } else if (value == 'delete') {
-                        _deleteProvider(context, providerId);
+                        viewModel.deleteProvider(
+                          context,
+                          partyId: partyId,
+                          itemId: itemId,
+                          providerId: providerId,
+                        );
                       }
                     },
                     itemBuilder: (context) => [
-                      PopupMenuItem(
+                      const PopupMenuItem(
                         value: 'edit',
                         child: Text('Edit'),
                       ),
-                      PopupMenuItem(
+                      const PopupMenuItem(
                         value: 'delete',
                         child: Text('Delete'),
                       ),
