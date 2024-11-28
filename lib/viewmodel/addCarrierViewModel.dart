@@ -5,21 +5,84 @@ class AddCarrierViewModel {
   List<String> memberNames = [];
   String? selectedName;
 
-  void fetchMemberNames(String partyId) {
+  int? totalMax;
+  int? totalRemaining;
+
+  void fetchMemberNamesExcludingCarried({
+    required String partyId,
+    required String itemId,
+    required VoidCallback onUpdate,
+  }) {
     FirebaseFirestore.instance
         .collection('parties')
         .doc(partyId)
         .collection('members')
         .get()
-        .then((snapshot) {
-      memberNames =
-          snapshot.docs.map((doc) => doc['firstName'] as String).toList();
+        .then((membersSnapshot) {
+      final allMemberNames = membersSnapshot.docs
+          .map((doc) => doc['firstName'] as String)
+          .toList();
+
+      FirebaseFirestore.instance
+          .collection('parties')
+          .doc(partyId)
+          .collection('sharedItems')
+          .doc(itemId)
+          .collection('carriedBy')
+          .get()
+          .then((carriedBySnapshot) {
+        final carriedNames =
+            carriedBySnapshot.docs.map((doc) => doc['name'] as String).toList();
+
+        memberNames = allMemberNames
+            .where((name) => !carriedNames.contains(name))
+            .toList();
+
+        onUpdate();
+      }).catchError((error) {
+        debugPrint("Error fetching provided names: $error");
+      });
     }).catchError((error) {
       debugPrint("Error fetching member names: $error");
     });
   }
 
-  /// Menyimpan data carrier ke Firestore
+  /// Fetch totalMax dan totalRemaining values dari item
+  void fetchTotalValues(String partyId, String itemId, VoidCallback onUpdate) {
+    FirebaseFirestore.instance
+        .collection('parties')
+        .doc(partyId)
+        .collection('sharedItems')
+        .doc(itemId)
+        .get()
+        .then((sharedItemSnapshot) {
+      if (sharedItemSnapshot.exists) {
+        totalMax = sharedItemSnapshot['total'];
+
+        FirebaseFirestore.instance
+            .collection('parties')
+            .doc(partyId)
+            .collection('sharedItems')
+            .doc(itemId)
+            .collection('carriedBy')
+            .get()
+            .then((carriersSnapshot) {
+          int totalCarried = carriersSnapshot.docs.fold<int>(
+            0,
+            (sum, doc) => sum + (doc['total'] as int),
+          );
+
+          totalRemaining = (totalMax ?? 0) - totalCarried;
+          onUpdate();
+        }).catchError((error) {
+          debugPrint("Error fetching total provided: $error");
+        });
+      }
+    }).catchError((error) {
+      debugPrint("Error fetching totalMax: $error");
+    });
+  }
+
   void saveCarrier({
     required String partyId,
     required String itemId,
@@ -63,7 +126,6 @@ class AddCarrierViewModel {
     });
   }
 
-  /// Membersihkan resource controller
   void dispose() {
     totalController.dispose();
   }

@@ -3,7 +3,6 @@ part of 'services.dart';
 class ItemServices {
   final FirebaseAuth auth = FirebaseAuth.instance;
 
-  // Update item total
   void updateItemTotal({
     required String itemId,
     required int newTotal,
@@ -40,7 +39,6 @@ class ItemServices {
     }
   }
 
-  // Delete item
   void deleteItem({
     required String itemId,
     required String partyId,
@@ -67,6 +65,9 @@ class ItemServices {
               .collection('sharedItems');
 
       collectionPath.doc(itemId).delete().then((_) {
+        isPersonal
+            ? _updateUsageCount(itemId)
+            : _updateUsageSharedCount(itemId);
         onSuccess();
       }).catchError((error) {
         onError(error.toString());
@@ -76,7 +77,43 @@ class ItemServices {
     }
   }
 
-  // Update item isChecked
+  void _updateUsageCount(String itemId) async {
+    final itemDoc =
+        await FirebaseFirestore.instance.collection('items').doc(itemId).get();
+    if (itemDoc.exists) {
+      final currentUsageCount = itemDoc.data()?['usageCount'] ?? 0;
+
+      FirebaseFirestore.instance.collection('items').doc(itemId).update({
+        'usageCount': currentUsageCount - 1,
+      }).then((_) {
+        print("Updated usageCount for item ID $itemId successfully.");
+      }).catchError((error) {
+        print("Failed to update usageCount for item ID $itemId: $error");
+      });
+    } else {
+      print("Item not found with ID $itemId");
+    }
+  }
+
+  void _updateUsageSharedCount(String itemId) async {
+    final itemDoc = await FirebaseFirestore.instance
+        .collection('sharedItems')
+        .doc(itemId)
+        .get();
+    if (itemDoc.exists) {
+      final currentUsageCount = itemDoc.data()?['usageCount'] ?? 0;
+      FirebaseFirestore.instance.collection('sharedItems').doc(itemId).update({
+        'usageCount': currentUsageCount - 1,
+      }).then((_) {
+        print("Updated usageCount for item ID $itemId successfully.");
+      }).catchError((error) {
+        print("Failed to update usageCount for item ID $itemId: $error");
+      });
+    } else {
+      print("Item not found with ID $itemId");
+    }
+  }
+
   void updateItemChecked({
     required String partyId,
     required String itemId,

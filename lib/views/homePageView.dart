@@ -56,9 +56,15 @@ class _HomePageState extends State<HomePage> {
 
                 return PartyCard(
                   key: ValueKey(partyId),
+                  partyId: partyId,
+                  userId: FirebaseAuth.instance.currentUser!.uid,
                   partyName: partyName,
                   startDate: startDate,
                   endDate: endDate,
+                  mountName: mountName,
+                  partyCode: partyCode,
+                  isCamping: isCamping,
+                  isCooking: isCooking,
                   onEdit: () {
                     Navigator.push(
                       context,
@@ -93,6 +99,7 @@ class _HomePageState extends State<HomePage> {
                       ),
                     );
                   },
+                  viewModel: vm, // Passing the ViewModel to the PartyCard
                 );
               },
             );

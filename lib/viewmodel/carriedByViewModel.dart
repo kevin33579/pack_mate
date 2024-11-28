@@ -1,37 +1,117 @@
 part of 'viewmodel.dart';
 
 class CarriedByViewModel {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  late String partyId;
-  late String itemId;
-
-  final StreamController<List<Map<String, dynamic>>> _providersController =
-      StreamController<List<Map<String, dynamic>>>.broadcast();
-
-  Stream<List<Map<String, dynamic>>> get providersStream =>
-      _providersController.stream;
-
-  void initialize({required String partyId, required String itemId}) {
-    this.partyId = partyId;
-    this.itemId = itemId;
-
-    // Listen to Firestore updates for carriers
-    _firestore
+  Stream<List<Map<String, dynamic>>> getCarriers(
+      String partyId, String itemId) {
+    return FirebaseFirestore.instance
         .collection('parties')
         .doc(partyId)
         .collection('sharedItems')
         .doc(itemId)
         .collection('carriedBy')
         .snapshots()
-        .listen((snapshot) {
-      List<Map<String, dynamic>> allProviders = snapshot.docs.map((doc) {
-        return doc.data();
-      }).toList();
-      _providersController.add(allProviders);
-    });
+        .map((snapshot) => snapshot.docs
+            .map((doc) => {
+                  'id': doc.id,
+                  ...doc.data(),
+                })
+            .toList());
   }
 
-  void dispose() {
-    _providersController.close();
+  void editCarrier(
+    BuildContext context, {
+    required String partyId,
+    required String itemId,
+    required String carrierId,
+    required String currentName,
+    required int currentTotal,
+  }) {
+    final totalController =
+        TextEditingController(text: currentTotal.toString());
+    String? selectedName;
+    List<String> memberNames = [];
+
+    FirebaseFirestore.instance
+        .collection('parties')
+        .doc(partyId)
+        .collection('members')
+        .get()
+        .then((snapshot) {
+      memberNames =
+          snapshot.docs.map((doc) => doc['firstName'] as String).toList();
+      if (selectedName == null) selectedName = currentName;
+    });
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Edit"),
+        content: StatefulBuilder(
+          builder: (context, setState) {
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: totalController,
+                  decoration: const InputDecoration(labelText: 'Total'),
+                  keyboardType: TextInputType.number,
+                ),
+              ],
+            );
+          },
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancel"),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final newName = selectedName ?? currentName;
+              final newTotal =
+                  int.tryParse(totalController.text.trim()) ?? currentTotal;
+
+              FirebaseFirestore.instance
+                  .collection('parties')
+                  .doc(partyId)
+                  .collection('sharedItems')
+                  .doc(itemId)
+                  .collection('carriedBy')
+                  .doc(carrierId)
+                  .update({
+                'name': newName,
+                'total': newTotal,
+              }).then((_) => Navigator.pop(context));
+            },
+            child: const Text("Save"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void deleteCarrier(
+    BuildContext context, {
+    required String partyId,
+    required String itemId,
+    required String carrierId,
+  }) {
+    FirebaseFirestore.instance
+        .collection('parties')
+        .doc(partyId)
+        .collection('sharedItems')
+        .doc(itemId)
+        .collection('carriedBy')
+        .doc(carrierId)
+        .delete()
+        .then((_) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Carrier deleted successfully')),
+      );
+    }).catchError((error) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to delete carrier: $error')),
+      );
+    });
   }
 }

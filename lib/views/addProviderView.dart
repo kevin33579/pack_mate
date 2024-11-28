@@ -21,8 +21,21 @@ class _AddProviderState extends State<AddProvider> {
   @override
   void initState() {
     super.initState();
-    viewModel.fetchMemberNames(widget.partyId);
-    setState(() {}); // Trigger the rebuild when the names are fetched
+    viewModel.fetchTotalValues(
+      widget.partyId,
+      widget.itemId,
+      () {
+        setState(() {});
+      },
+    );
+
+    viewModel.fetchMemberNamesExcludingProvided(
+      partyId: widget.partyId,
+      itemId: widget.itemId,
+      onUpdate: () {
+        setState(() {});
+      },
+    );
   }
 
   @override
@@ -55,26 +68,42 @@ class _AddProviderState extends State<AddProvider> {
             Text('Item: ${widget.itemName}',
                 style: const TextStyle(fontSize: 18)),
             const SizedBox(height: 16),
-            TextField(
-              controller: viewModel.totalController,
-              decoration: const InputDecoration(labelText: 'Total'),
-              keyboardType: TextInputType.number,
-            ),
+            viewModel.totalRemaining != null
+                ? DropdownButtonFormField<int>(
+                    decoration: const InputDecoration(labelText: 'Total'),
+                    value: int.tryParse(viewModel.totalController.text),
+                    items: List.generate(
+                      viewModel.totalRemaining!,
+                      (index) => DropdownMenuItem(
+                        value: index + 1,
+                        child: Text((index + 1).toString()),
+                      ),
+                    ),
+                    onChanged: (int? newValue) {
+                      setState(() {
+                        viewModel.totalController.text = newValue.toString();
+                      });
+                    },
+                  )
+                : const CircularProgressIndicator(),
             const SizedBox(height: 16),
-            DropdownButtonFormField<String>(
-              decoration: const InputDecoration(labelText: 'Name'),
-              items: viewModel.memberNames.map((name) {
-                return DropdownMenuItem<String>(
-                  value: name,
-                  child: Text(name),
-                );
-              }).toList(),
-              onChanged: (String? newValue) {
-                setState(() {
-                  viewModel.selectedName = newValue;
-                });
-              },
-            ),
+            viewModel.memberNames.isNotEmpty
+                ? DropdownButtonFormField<String>(
+                    decoration: const InputDecoration(labelText: 'Name'),
+                    value: viewModel.selectedName,
+                    items: viewModel.memberNames.map((name) {
+                      return DropdownMenuItem<String>(
+                        value: name,
+                        child: Text(name),
+                      );
+                    }).toList(),
+                    onChanged: (String? newValue) {
+                      setState(() {
+                        viewModel.selectedName = newValue;
+                      });
+                    },
+                  )
+                : const Text('No available members'),
           ],
         ),
       ),

@@ -22,3 +22,4 @@ part 'loginView.dart';
 part 'registerView.dart';
 part 'editPartyView.dart';
 part 'addItemsSharedView.dart';
+part 'partyDetailView.dart';

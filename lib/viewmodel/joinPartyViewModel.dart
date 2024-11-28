@@ -18,7 +18,7 @@ class JoinPartyViewModel {
     }
 
     isLoading = true;
-    notifyListeners(context); // Notify UI
+    notifyListeners(context);
 
     FirebaseFirestore.instance
         .collection('parties')
@@ -122,7 +122,6 @@ class JoinPartyViewModel {
   }
 
   void notifyListeners(BuildContext context) {
-    // Menggunakan metode ini agar kita dapat melakukan setState dari JoinParty.
     if (context.mounted) {
       (context as Element).markNeedsBuild();
     }

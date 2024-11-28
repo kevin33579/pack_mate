@@ -30,7 +30,7 @@ class _AddItemsState extends State<AddItems> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Add Items'),
+        title: const Text('Add Personal Items'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () {

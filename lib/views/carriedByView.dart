@@ -15,20 +15,16 @@ class CarriedBy extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    viewModel.initialize(partyId: partyId, itemId: itemId);
-
     return Scaffold(
       appBar: AppBar(
-        title: Text('Carrier'),
+        title: const Text('Carriers'),
         leading: IconButton(
-          icon: Icon(Icons.arrow_back),
-          onPressed: () {
-            Navigator.pop(context);
-          },
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.pop(context),
         ),
         actions: [
           IconButton(
-            icon: Icon(Icons.add),
+            icon: const Icon(Icons.add),
             onPressed: () {
               Navigator.push(
                 context,
@@ -45,28 +41,61 @@ class CarriedBy extends StatelessWidget {
         ],
       ),
       body: StreamBuilder<List<Map<String, dynamic>>>(
-        stream: viewModel.providersStream,
+        stream: viewModel.getCarriers(partyId, itemId),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return Center(child: CircularProgressIndicator());
+            return const Center(child: CircularProgressIndicator());
           }
           if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return Center(child: Text("No carriers found."));
+            return const Center(child: Text("No carriers found."));
           }
 
           final carriers = snapshot.data!;
           return ListView.builder(
             itemCount: carriers.length,
             itemBuilder: (context, index) {
-              var carrier = carriers[index];
+              final carrier = carriers[index];
+              final carrierId = carrier['id'];
+              final carrierName = carrier['name'] ?? 'Unknown';
+              final carrierTotal = carrier['total'] ?? 0;
+
               return Card(
-                margin: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 child: ListTile(
                   title: Text(
-                    carrier['name'] ?? 'Unknown',
-                    style: TextStyle(fontWeight: FontWeight.bold),
+                    carrierName,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
-                  subtitle: Text('Total: ${carrier['total'] ?? 0}'),
+                  subtitle: Text('Total: $carrierTotal'),
+                  trailing: PopupMenuButton<String>(
+                    onSelected: (value) {
+                      if (value == 'edit') {
+                        viewModel.editCarrier(context,
+                            partyId: partyId,
+                            itemId: itemId,
+                            carrierId: carrierId,
+                            currentName: carrierName,
+                            currentTotal: carrierTotal);
+                      } else if (value == 'delete') {
+                        viewModel.deleteCarrier(
+                          context,
+                          partyId: partyId,
+                          itemId: itemId,
+                          carrierId: carrierId,
+                        );
+                      }
+                    },
+                    itemBuilder: (context) => [
+                      const PopupMenuItem(
+                        value: 'edit',
+                        child: Text('Edit'),
+                      ),
+                      const PopupMenuItem(
+                        value: 'delete',
+                        child: Text('Delete'),
+                      ),
+                    ],
+                  ),
                 ),
               );
             },

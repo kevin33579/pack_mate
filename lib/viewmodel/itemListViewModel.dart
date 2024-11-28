@@ -5,7 +5,6 @@ class ItemListViewModel {
   final FirebaseAuth auth = FirebaseAuth.instance;
   final ItemServices itemServices = ItemServices();
 
-  // Get user role
   void getUserRole(String partyId, Function(String?) onRoleFetched) async {
     final user = auth.currentUser;
     if (user != null) {
@@ -26,7 +25,6 @@ class ItemListViewModel {
     }
   }
 
-  // Get items
   Stream<List<DocumentSnapshot>> getItems(String type, String partyId) {
     final user = auth.currentUser;
 
@@ -49,7 +47,6 @@ class ItemListViewModel {
     }
   }
 
-  // Edit item total
   void editItemTotal(
     BuildContext context,
     String itemId,
@@ -99,7 +96,6 @@ class ItemListViewModel {
     );
   }
 
-  // Delete item
   void deleteItem(String itemId, BuildContext context, String partyId,
       {bool isPersonal = false}) {
     itemServices.deleteItem(
@@ -119,7 +115,6 @@ class ItemListViewModel {
     );
   }
 
-  // Update item checked
   void updateItemChecked({
     required String partyId,
     required String itemId,

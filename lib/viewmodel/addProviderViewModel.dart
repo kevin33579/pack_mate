@@ -5,29 +5,91 @@ class AddProviderViewModel {
   List<String> memberNames = [];
   String? selectedName;
 
-  /// Fetches member names from Firestore and updates memberNames list
-  void fetchMemberNames(String partyId) {
+  int? totalMax;
+  int? totalRemaining;
+
+  /// Fetches member names from Firestore, excluding those already in provideBy
+  void fetchMemberNamesExcludingProvided({
+    required String partyId,
+    required String itemId,
+    required VoidCallback onUpdate,
+  }) {
     FirebaseFirestore.instance
         .collection('parties')
         .doc(partyId)
         .collection('members')
         .get()
-        .then((snapshot) {
-      memberNames =
-          snapshot.docs.map((doc) => doc['firstName'] as String).toList();
+        .then((membersSnapshot) {
+      final allMemberNames = membersSnapshot.docs
+          .map((doc) => doc['firstName'] as String)
+          .toList();
+
+      FirebaseFirestore.instance
+          .collection('parties')
+          .doc(partyId)
+          .collection('sharedItems')
+          .doc(itemId)
+          .collection('provideBy')
+          .get()
+          .then((provideBySnapshot) {
+        final providedNames =
+            provideBySnapshot.docs.map((doc) => doc['name'] as String).toList();
+
+        // Exclude names already in provideBy
+        memberNames = allMemberNames
+            .where((name) => !providedNames.contains(name))
+            .toList();
+
+        onUpdate();
+      }).catchError((error) {
+        debugPrint("Error fetching provided names: $error");
+      });
     }).catchError((error) {
       debugPrint("Error fetching member names: $error");
     });
   }
 
-  /// Saves provider data to Firestore under the 'provideBy' collection
+  void fetchTotalValues(String partyId, String itemId, VoidCallback onUpdate) {
+    FirebaseFirestore.instance
+        .collection('parties')
+        .doc(partyId)
+        .collection('sharedItems')
+        .doc(itemId)
+        .get()
+        .then((sharedItemSnapshot) {
+      if (sharedItemSnapshot.exists) {
+        totalMax = sharedItemSnapshot['total'];
+
+        FirebaseFirestore.instance
+            .collection('parties')
+            .doc(partyId)
+            .collection('sharedItems')
+            .doc(itemId)
+            .collection('provideBy')
+            .get()
+            .then((providersSnapshot) {
+          int totalProvided = providersSnapshot.docs.fold<int>(
+            0,
+            (sum, doc) => sum + (doc['total'] as int),
+          );
+
+          totalRemaining = (totalMax ?? 0) - totalProvided;
+          onUpdate();
+        }).catchError((error) {
+          debugPrint("Error fetching total provided: $error");
+        });
+      }
+    }).catchError((error) {
+      debugPrint("Error fetching totalMax: $error");
+    });
+  }
+
   void saveProvider({
     required String partyId,
     required String itemId,
     required BuildContext context,
   }) {
     if (selectedName != null && totalController.text.isNotEmpty) {
-      // Fetch the userId for the selected name
       FirebaseFirestore.instance
           .collection('parties')
           .doc(partyId)
@@ -38,13 +100,11 @@ class AddProviderViewModel {
         if (snapshot.docs.isNotEmpty) {
           String userId = snapshot.docs.first.id;
 
-          // Prepare provider data
           final providerData = {
             'name': selectedName,
             'total': int.parse(totalController.text),
           };
 
-          // Save provider data to Firestore
           FirebaseFirestore.instance
               .collection('parties')
               .doc(partyId)
@@ -67,7 +127,6 @@ class AddProviderViewModel {
     }
   }
 
-  /// Disposes of the controller to free up resources
   void dispose() {
     totalController.dispose();
   }
