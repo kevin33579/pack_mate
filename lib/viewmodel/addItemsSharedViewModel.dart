@@ -18,24 +18,34 @@ class AddItemsSharedViewModel {
     this.partyId = partyId;
     this.userId = userId;
 
-    //Calculate usage count across all parties
-    _calculateUsageCount((usageCount) {
-      _firestore.collection('sharedItems').snapshots().listen((snapshot) {
+    _calculateUsageCount().then((usageCount) async {
+      final sharedItemsSnapshot = await _firestore
+          .collection('parties')
+          .doc(partyId)
+          .collection('sharedItems')
+          .get();
+
+      final personalItemIds =
+          sharedItemsSnapshot.docs.map((doc) => doc.id).toSet();
+
+      _firestore.collection('items').snapshots().listen((snapshot) {
         final List<Item> itemsList = [];
 
-        //Fetch all items
+        // Filter items that are not in personalItems
         for (var doc in snapshot.docs) {
           final id = doc.id;
-          final data = doc.data() as Map<String, dynamic>;
-          itemsList.add(Item(
-            id: id,
-            name: data['name'] ?? '',
-            total: data['total'] ?? 1,
-            isChecked: false,
-          ));
+          if (!personalItemIds.contains(id)) {
+            final data = doc.data() as Map<String, dynamic>;
+            itemsList.add(Item(
+              id: id,
+              name: data['name'] ?? '',
+              total: data['total'] ?? 1,
+              isChecked: false,
+            ));
+          }
         }
 
-        //Sort items by usage count
+        // Sort the filtered items
         final sortedItems = quickSort(itemsList, usageCount);
 
         // Convert sorted list back to map
@@ -43,35 +53,54 @@ class AddItemsSharedViewModel {
         _itemsController.add(sortedItemsMap);
         onUpdate(sortedItemsMap);
       });
+    }).catchError((error) {
+      print("Error calculating usage count: $error");
     });
   }
 
-  FutureOr<void> _calculateUsageCount(
-      void Function(Map<String, int>) onCompletion) async {
+  Future<Map<String, int>> _calculateUsageCount() async {
     final Map<String, int> usageCount = {};
 
     try {
+      //Get the current party's isCooking and isCamping values
+      final currentPartyDoc =
+          await _firestore.collection('parties').doc(partyId).get();
+      if (!currentPartyDoc.exists) {
+        throw Exception("Current party not found");
+      }
+
+      final currentData = currentPartyDoc.data()!;
+      final isCooking = currentData['isCooking'] as bool? ?? false;
+      final isCamping = currentData['isCamping'] as bool? ?? false;
+
+      //Find parties with the same isCooking and isCamping values
       final partiesSnapshot = await _firestore.collection('parties').get();
-      for (var partyDoc in partiesSnapshot.docs) {
+      final matchingParties = partiesSnapshot.docs.where((partyDoc) {
+        final data = partyDoc.data();
+        return data['isCooking'] == isCooking && data['isCamping'] == isCamping;
+      });
+
+      //Calculate usageCount for matching parties
+      for (var partyDoc in matchingParties) {
         final sharedItemsSnapshot = await _firestore
             .collection('parties')
             .doc(partyDoc.id)
             .collection('sharedItems')
             .get();
+
         for (var itemDoc in sharedItemsSnapshot.docs) {
           final itemId = itemDoc.id;
           usageCount[itemId] = (usageCount[itemId] ?? 0) + 1;
         }
       }
-
-      print("Calculated Usage Count: $usageCount");
-      onCompletion(usageCount);
-    } catch (error) {
-      print("Error calculating usage count: $error");
-      onCompletion({});
+    } catch (e) {
+      print("Error in _calculateUsageCount: $e");
     }
+
+    return usageCount;
   }
 
+  /// Quick Sort algorithm for sorting items by usage count (descending order)
   List<Item> quickSort(List<Item> items, Map<String, int> usageCount) {
     if (items.length <= 1) return items;
 
@@ -124,7 +153,6 @@ class AddItemsSharedViewModel {
           'name': newItemName,
           'total': 1,
           'isChecked': false,
-          'usageCount': 0,
         }).then((_) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text("Item '$newItemName' added successfully!")),

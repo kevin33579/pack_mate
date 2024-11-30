@@ -17,35 +17,75 @@ class AddItemsViewModel {
   }) {
     this.partyId = partyId;
     this.userId = userId;
-    _calculateUsageCount((usageCount) {
+
+    // Calculate usage count across all parties
+    _calculateUsageCount().then((usageCount) async {
+      // Fetch personal items of the user
+      final personalItemsSnapshot = await _firestore
+          .collection('parties')
+          .doc(partyId)
+          .collection('members')
+          .doc(userId)
+          .collection('personalItems')
+          .get();
+
+      final personalItemIds =
+          personalItemsSnapshot.docs.map((doc) => doc.id).toSet();
+
       _firestore.collection('items').snapshots().listen((snapshot) {
         final List<Item> itemsList = [];
+
+        // Filter items that are not in personalItems
         for (var doc in snapshot.docs) {
           final id = doc.id;
-          final data = doc.data() as Map<String, dynamic>;
-          itemsList.add(Item(
-            id: id,
-            name: data['name'] ?? '',
-            total: data['total'] ?? 1,
-            isChecked: false,
-          ));
+          if (!personalItemIds.contains(id)) {
+            final data = doc.data() as Map<String, dynamic>;
+            itemsList.add(Item(
+              id: id,
+              name: data['name'] ?? '',
+              total: data['total'] ?? 1,
+              isChecked: false,
+            ));
+          }
         }
+
+        // Sort the filtered items
         final sortedItems = quickSort(itemsList, usageCount);
 
+        // Convert sorted list back to map
         final sortedItemsMap = {for (var item in sortedItems) item.id: item};
         _itemsController.add(sortedItemsMap);
         onUpdate(sortedItemsMap);
       });
+    }).catchError((error) {
+      print("Error calculating usage count: $error");
     });
   }
 
-  FutureOr<void> _calculateUsageCount(
-      void Function(Map<String, int>) onCompletion) async {
+  Future<Map<String, int>> _calculateUsageCount() async {
     final Map<String, int> usageCount = {};
 
     try {
+      //Get the current party's isCooking and isCamping values
+      final currentPartyDoc =
+          await _firestore.collection('parties').doc(partyId).get();
+      if (!currentPartyDoc.exists) {
+        throw Exception("Current party not found");
+      }
+
+      final currentData = currentPartyDoc.data()!;
+      final isCooking = currentData['isCooking'] as bool? ?? false;
+      final isCamping = currentData['isCamping'] as bool? ?? false;
+
+      //Find parties with the same isCooking and isCamping values
       final partiesSnapshot = await _firestore.collection('parties').get();
-      for (var partyDoc in partiesSnapshot.docs) {
+      final matchingParties = partiesSnapshot.docs.where((partyDoc) {
+        final data = partyDoc.data();
+        return data['isCooking'] == isCooking && data['isCamping'] == isCamping;
+      });
+
+      //Calculate usageCount for matching parties
+      for (var partyDoc in matchingParties) {
         final membersSnapshot = await _firestore
             .collection('parties')
             .doc(partyDoc.id)
@@ -67,15 +107,14 @@ class AddItemsViewModel {
           }
         }
       }
-
-      print("Calculated Usage Count: $usageCount");
-      onCompletion(usageCount);
-    } catch (error) {
-      print("Error calculating usage count: $error");
-      onCompletion({});
+    } catch (e) {
+      print("Error in _calculateUsageCount: $e");
     }
+
+    return usageCount;
   }
 
+  /// Quick Sort algorithm for sorting items by usage count (descending order)
   List<Item> quickSort(List<Item> items, Map<String, int> usageCount) {
     if (items.length <= 1) return items;
 
@@ -128,7 +167,6 @@ class AddItemsViewModel {
           'name': newItemName,
           'total': 1,
           'isChecked': false,
-          'usageCount': 0,
         }).then((_) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text("Item '$newItemName' added successfully!")),
@@ -160,7 +198,6 @@ class AddItemsViewModel {
         'isChecked': false,
       }).then((_) {
         print("Item '${item.name}' saved successfully.");
-        _updateUsageCount(item.id);
       }).catchError((error) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text("Failed to save item '${item.name}': $error")),
@@ -169,22 +206,6 @@ class AddItemsViewModel {
     }
 
     Navigator.pop(context, selectedItems);
-  }
-
-  void _updateUsageCount(String itemId) async {
-    final itemDoc = await _firestore.collection('items').doc(itemId).get();
-    if (itemDoc.exists) {
-      final currentUsageCount = itemDoc.data()?['usageCount'] ?? 0;
-      _firestore.collection('items').doc(itemId).update({
-        'usageCount': currentUsageCount + 1,
-      }).then((_) {
-        print("Updated usageCount for item ID $itemId successfully.");
-      }).catchError((error) {
-        print("Failed to update usageCount for item ID $itemId: $error");
-      });
-    } else {
-      print("Item not found with ID $itemId");
-    }
   }
 
   void dispose() {

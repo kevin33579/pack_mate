@@ -54,6 +54,27 @@ class _AddItemsState extends State<AddItems> {
           }
 
           final items = snapshot.data!;
+          if (items.isEmpty) {
+            return Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(children: [
+                const Center(
+                  child: Text(
+                    "No items available to add.",
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                ElevatedButton(
+                  onPressed: () {
+                    _viewModel.addNewItem(context);
+                  },
+                  child: const Text("Add New Item"),
+                ),
+              ]),
+            );
+          }
+
           return Padding(
             padding: const EdgeInsets.all(16.0),
             child: Column(
