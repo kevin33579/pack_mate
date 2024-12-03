@@ -1,17 +1,35 @@
 part of 'view.dart';
 
-class ProvidedBy extends StatelessWidget {
+class ProvidedBy extends StatefulWidget {
   final String partyId;
   final String itemId;
   final String itemName;
 
   ProvidedBy({
+    Key? key,
     required this.partyId,
     required this.itemId,
     required this.itemName,
   });
 
+  @override
+  State<ProvidedBy> createState() => _ProvidedByState();
+}
+
+class _ProvidedByState extends State<ProvidedBy> {
   final ProvidedByViewModel viewModel = ProvidedByViewModel();
+
+  @override
+  void initState() {
+    super.initState();
+    viewModel.fetchTotalValues(
+      widget.partyId,
+      widget.itemId,
+      () {
+        setState(() {});
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -30,9 +48,9 @@ class ProvidedBy extends StatelessWidget {
                 context,
                 MaterialPageRoute(
                   builder: (context) => AddProvider(
-                    itemId: itemId,
-                    partyId: partyId,
-                    itemName: itemName,
+                    itemId: widget.itemId,
+                    partyId: widget.partyId,
+                    itemName: widget.itemName,
                   ),
                 ),
               );
@@ -41,7 +59,7 @@ class ProvidedBy extends StatelessWidget {
         ],
       ),
       body: StreamBuilder<List<Map<String, dynamic>>>(
-        stream: viewModel.getProviders(partyId, itemId),
+        stream: viewModel.getProviders(widget.partyId, widget.itemId),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -72,8 +90,8 @@ class ProvidedBy extends StatelessWidget {
                       if (value == 'edit') {
                         viewModel.editProvider(
                           context,
-                          partyId: partyId,
-                          itemId: itemId,
+                          partyId: widget.partyId,
+                          itemId: widget.itemId,
                           providerId: providerId,
                           currentName: providerName,
                           currentTotal: providerTotal,
@@ -81,8 +99,8 @@ class ProvidedBy extends StatelessWidget {
                       } else if (value == 'delete') {
                         viewModel.deleteProvider(
                           context,
-                          partyId: partyId,
-                          itemId: itemId,
+                          partyId: widget.partyId,
+                          itemId: widget.itemId,
                           providerId: providerId,
                         );
                       }

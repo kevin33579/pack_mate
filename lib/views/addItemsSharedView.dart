@@ -12,7 +12,8 @@ class AddItemsShared extends StatefulWidget {
 
 class _AddItemsSharedState extends State<AddItemsShared> {
   final AddItemsSharedViewModel _viewModel = AddItemsSharedViewModel();
-  Map<String, Item> items = {};
+  Map<String, Item> recommendedItems = {};
+  Map<String, Item> otherItems = {};
 
   @override
   void initState() {
@@ -20,7 +21,9 @@ class _AddItemsSharedState extends State<AddItemsShared> {
     _viewModel.initialize(widget.partyId, widget.userId,
         onUpdate: (updatedItems) {
       setState(() {
-        items = updatedItems;
+        recommendedItems = updatedItems['recommended']!;
+        otherItems = updatedItems['other']!;
+        print("Updated recommended items count: ${recommendedItems.length}");
       });
     });
   }
@@ -29,7 +32,7 @@ class _AddItemsSharedState extends State<AddItemsShared> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Add Shared Items'),
+        title: const Text('Add Personal Items'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
@@ -38,51 +41,87 @@ class _AddItemsSharedState extends State<AddItemsShared> {
         ),
         actions: [
           IconButton(
+            icon: const Icon(Icons.add),
+            onPressed: () {
+              _viewModel.addNewItem(context);
+            },
+          ),
+          IconButton(
             icon: const Icon(Icons.check),
             onPressed: () {
-              _viewModel.saveSelectedItems(items, context);
+              _viewModel.saveSelectedRecommendedItems(
+                  recommendedItems, context);
+              _viewModel.saveSelectedItems(otherItems, context);
+
+              Navigator.pop(context);
             },
           ),
         ],
       ),
-      body: StreamBuilder<Map<String, Item>>(
-        stream: _viewModel.itemsStream,
-        builder: (context, snapshot) {
-          if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          final items = snapshot.data!;
-          if (items.isEmpty) {
-            return Padding(
+      body: Column(
+        children: [
+          // Recommended Items Section
+          Expanded(
+            child: Padding(
               padding: const EdgeInsets.all(16.0),
-              child: Column(children: [
-                const Center(
-                  child: Text(
-                    "No items available to add.",
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    "Recommended Items",
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
-                ),
-                const SizedBox(height: 10),
-                ElevatedButton(
-                  onPressed: () {
-                    _viewModel.addNewItem(context);
-                  },
-                  child: const Text("Add New Item"),
-                ),
-              ]),
-            );
-          }
-
-          return Padding(
+                  const SizedBox(height: 10),
+                  if (recommendedItems.isEmpty)
+                    const Center(child: Text("No recommended items available."))
+                  else
+                    Expanded(
+                      child: ListView.builder(
+                        itemCount: recommendedItems.length,
+                        itemBuilder: (context, index) {
+                          final item = recommendedItems.values
+                              .toList()[index]; // Convert map to list
+                          return Card(
+                            margin: const EdgeInsets.symmetric(vertical: 8.0),
+                            child: ListTile(
+                              title: Text(item.name),
+                              subtitle: Text('Total: ${item.total}'),
+                              trailing: Checkbox(
+                                value: item.isChecked,
+                                onChanged: (bool? value) {
+                                  setState(() {
+                                    item.isChecked = value ?? false;
+                                  });
+                                },
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          // Other Items Section
+          Padding(
             padding: const EdgeInsets.all(16.0),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: ListView.builder(
-                    itemCount: items.length,
+                const Text(
+                  "Other Items",
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 10),
+                if (otherItems.isEmpty)
+                  const Center(child: Text("No other items available."))
+                else
+                  ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: otherItems.length,
                     itemBuilder: (context, index) {
-                      final item = items.values.elementAt(index);
+                      final item = otherItems.values.elementAt(index);
                       return Card(
                         margin: const EdgeInsets.symmetric(vertical: 8.0),
                         child: ListTile(
@@ -100,18 +139,10 @@ class _AddItemsSharedState extends State<AddItemsShared> {
                       );
                     },
                   ),
-                ),
-                const SizedBox(height: 10),
-                ElevatedButton(
-                  onPressed: () {
-                    _viewModel.addNewItem(context);
-                  },
-                  child: const Text("Add New Item"),
-                ),
               ],
             ),
-          );
-        },
+          ),
+        ],
       ),
     );
   }

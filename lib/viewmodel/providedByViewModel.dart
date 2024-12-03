@@ -1,6 +1,10 @@
 part of 'viewmodel.dart';
 
 class ProvidedByViewModel {
+  final TextEditingController totalController = TextEditingController();
+  int? totalMax;
+  int? totalRemaining;
+
   Stream<List<Map<String, dynamic>>> getProviders(
       String partyId, String itemId) {
     return FirebaseFirestore.instance
@@ -16,6 +20,42 @@ class ProvidedByViewModel {
                   ...doc.data(),
                 })
             .toList());
+  }
+
+  void fetchTotalValues(
+      String partyId, String itemId, VoidCallback onUpdate) async {
+    FirebaseFirestore.instance
+        .collection('parties')
+        .doc(partyId)
+        .collection('sharedItems')
+        .doc(itemId)
+        .get()
+        .then((sharedItemSnapshot) {
+      if (sharedItemSnapshot.exists) {
+        totalMax = sharedItemSnapshot['total'];
+
+        FirebaseFirestore.instance
+            .collection('parties')
+            .doc(partyId)
+            .collection('sharedItems')
+            .doc(itemId)
+            .collection('provideBy')
+            .get()
+            .then((providersSnapshot) {
+          int totalProvided = providersSnapshot.docs.fold<int>(
+            0,
+            (sum, doc) => sum + (doc['total'] as int),
+          );
+
+          totalRemaining = (totalMax ?? 0) - totalProvided;
+          onUpdate();
+        }).catchError((error) {
+          debugPrint("Error fetching total provided: $error");
+        });
+      }
+    }).catchError((error) {
+      debugPrint("Error fetching totalMax: $error");
+    });
   }
 
   void editProvider(
@@ -51,11 +91,23 @@ class ProvidedByViewModel {
             return Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                TextField(
-                  controller: totalController,
-                  decoration: const InputDecoration(labelText: 'Total'),
-                  keyboardType: TextInputType.number,
-                ),
+                totalRemaining != null
+                    ? DropdownButtonFormField<int>(
+                        decoration: const InputDecoration(labelText: 'Total'),
+                        items: List.generate(
+                          totalRemaining!,
+                          (index) => DropdownMenuItem(
+                            value: index + 1,
+                            child: Text((index + 1).toString()),
+                          ),
+                        ),
+                        onChanged: (int? newValue) {
+                          setState(() {
+                            totalController.text = newValue.toString();
+                          });
+                        },
+                      )
+                    : const CircularProgressIndicator(),
               ],
             );
           },

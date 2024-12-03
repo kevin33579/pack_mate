@@ -1,17 +1,34 @@
 part of 'view.dart';
 
-class CarriedBy extends StatelessWidget {
+class CarriedBy extends StatefulWidget {
   final String partyId;
   final String itemId;
   final String itemName;
 
-  final CarriedByViewModel viewModel = CarriedByViewModel();
-
   CarriedBy({
+    Key? key,
     required this.partyId,
     required this.itemId,
     required this.itemName,
   });
+
+  @override
+  State<CarriedBy> createState() => _CarriedByState();
+}
+
+class _CarriedByState extends State<CarriedBy> {
+  final CarriedByViewModel viewModel = CarriedByViewModel();
+  @override
+  void initState() {
+    super.initState();
+    viewModel.fetchTotalValues(
+      widget.partyId,
+      widget.itemId,
+      () {
+        setState(() {});
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -30,9 +47,9 @@ class CarriedBy extends StatelessWidget {
                 context,
                 MaterialPageRoute(
                   builder: (context) => AddCarrier(
-                    itemId: itemId,
-                    partyId: partyId,
-                    itemName: itemName,
+                    itemId: widget.itemId,
+                    partyId: widget.partyId,
+                    itemName: widget.itemName,
                   ),
                 ),
               );
@@ -41,7 +58,7 @@ class CarriedBy extends StatelessWidget {
         ],
       ),
       body: StreamBuilder<List<Map<String, dynamic>>>(
-        stream: viewModel.getCarriers(partyId, itemId),
+        stream: viewModel.getCarriers(widget.partyId, widget.itemId),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -70,17 +87,19 @@ class CarriedBy extends StatelessWidget {
                   trailing: PopupMenuButton<String>(
                     onSelected: (value) {
                       if (value == 'edit') {
-                        viewModel.editCarrier(context,
-                            partyId: partyId,
-                            itemId: itemId,
-                            carrierId: carrierId,
-                            currentName: carrierName,
-                            currentTotal: carrierTotal);
+                        viewModel.editCarrier(
+                          context,
+                          partyId: widget.partyId,
+                          itemId: widget.itemId,
+                          carrierId: carrierId,
+                          currentName: carrierName,
+                          currentTotal: carrierTotal,
+                        );
                       } else if (value == 'delete') {
                         viewModel.deleteCarrier(
                           context,
-                          partyId: partyId,
-                          itemId: itemId,
+                          partyId: widget.partyId,
+                          itemId: widget.itemId,
                           carrierId: carrierId,
                         );
                       }

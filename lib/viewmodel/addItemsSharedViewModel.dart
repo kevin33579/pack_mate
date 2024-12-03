@@ -5,53 +5,76 @@ class AddItemsSharedViewModel {
   late String partyId;
   late String userId;
 
-  final StreamController<Map<String, Item>> _itemsController =
-      StreamController<Map<String, Item>>.broadcast();
+  final StreamController<Map<String, Map<String, Item>>> _itemsController =
+      StreamController<Map<String, Map<String, Item>>>.broadcast();
 
-  Stream<Map<String, Item>> get itemsStream => _itemsController.stream;
+  Stream<Map<String, Map<String, Item>>> get itemsStream =>
+      _itemsController.stream;
 
   void initialize(
     String partyId,
     String userId, {
-    required Function(Map<String, Item>) onUpdate,
+    required Function(Map<String, Map<String, Item>>) onUpdate,
   }) {
     this.partyId = partyId;
     this.userId = userId;
 
     _calculateUsageCount().then((usageCount) async {
-      final sharedItemsSnapshot = await _firestore
+      // Ambil data personalItems milik user
+      final personalItemsSnapshot = await _firestore
           .collection('parties')
           .doc(partyId)
           .collection('sharedItems')
           .get();
 
       final personalItemIds =
-          sharedItemsSnapshot.docs.map((doc) => doc.id).toSet();
+          personalItemsSnapshot.docs.map((doc) => doc.id).toSet();
 
       _firestore.collection('items').snapshots().listen((snapshot) {
-        final List<Item> itemsList = [];
+        final List<Item> recommendedItems = [];
+        final List<Item> otherItems = [];
 
-        // Filter items that are not in personalItems
         for (var doc in snapshot.docs) {
           final id = doc.id;
           if (!personalItemIds.contains(id)) {
             final data = doc.data() as Map<String, dynamic>;
-            itemsList.add(Item(
+            final item = Item(
               id: id,
               name: data['name'] ?? '',
               total: data['total'] ?? 1,
               isChecked: false,
-            ));
+            );
+
+            // Masukkan item ke kategori yang sesuai
+            if ((usageCount[id] ?? 0) > 0) {
+              recommendedItems.add(item);
+            } else {
+              otherItems.add(item);
+            }
           }
         }
 
-        // Sort the filtered items
-        final sortedItems = quickSort(itemsList, usageCount);
+        // Sorting recommended items
+        final sortedRecommended = quickSort(recommendedItems, usageCount);
 
-        // Convert sorted list back to map
-        final sortedItemsMap = {for (var item in sortedItems) item.id: item};
-        _itemsController.add(sortedItemsMap);
-        onUpdate(sortedItemsMap);
+        // Filter out items in recommendedItems from otherItems
+        final filteredOtherItems = otherItems.where((item) {
+          return !recommendedItems.contains(item);
+        }).toList();
+
+        // Gabungkan recommended and other items into a map
+        final combinedItems = {
+          'recommended': {for (var item in sortedRecommended) item.id: item},
+          'other': {for (var item in filteredOtherItems) item.id: item},
+        };
+
+        // Kirim data ke StreamController dan callback
+        _itemsController.add(combinedItems);
+        onUpdate(combinedItems);
+        print("Recommended items count: ${recommendedItems.length}");
+        recommendedItems.forEach((item) {
+          print("Item: ${item.name}, Usage Count: ${usageCount[item.id]}");
+        });
       });
     }).catchError((error) {
       print("Error calculating usage count: $error");
@@ -100,13 +123,13 @@ class AddItemsSharedViewModel {
     return usageCount;
   }
 
-  /// Quick Sort algorithm for sorting items by usage count (descending order)
   List<Item> quickSort(List<Item> items, Map<String, int> usageCount) {
     if (items.length <= 1) return items;
 
     final pivot = items[items.length ~/ 2];
     final pivotCount = usageCount[pivot.id] ?? 0;
 
+    // Divide the items into three categories: greater, equal, and less
     final greater =
         items.where((item) => (usageCount[item.id] ?? 0) > pivotCount).toList();
     final equal = items
@@ -115,6 +138,7 @@ class AddItemsSharedViewModel {
     final less =
         items.where((item) => (usageCount[item.id] ?? 0) < pivotCount).toList();
 
+    // Ensure that even items with the same usage count appear by concatenating them
     return quickSort(greater, usageCount) + equal + quickSort(less, usageCount);
   }
 
@@ -124,7 +148,7 @@ class AddItemsSharedViewModel {
       builder: (BuildContext context) {
         String itemName = '';
         return AlertDialog(
-          title: const Text('Add New Shared Item'),
+          title: const Text('Add New Item'),
           content: TextField(
             onChanged: (value) {
               itemName = value;
@@ -149,7 +173,7 @@ class AddItemsSharedViewModel {
       },
     ).then((newItemName) {
       if (newItemName != null && newItemName.isNotEmpty) {
-        _firestore.collection('sharedItems').add({
+        _firestore.collection('items').add({
           'name': newItemName,
           'total': 1,
           'isChecked': false,
@@ -166,10 +190,12 @@ class AddItemsSharedViewModel {
     });
   }
 
-  void saveSelectedItems(Map<String, Item> items, BuildContext context) {
+  void saveSelectedRecommendedItems(
+      Map<String, Item> items, BuildContext context) {
     final selectedItems = items.values.where((item) => item.isChecked).toList();
 
     for (final item in selectedItems) {
+      // Simpan item ke personalItems di database
       _firestore
           .collection('parties')
           .doc(partyId)
@@ -181,33 +207,35 @@ class AddItemsSharedViewModel {
         'isChecked': false,
       }).then((_) {
         print("Item '${item.name}' saved successfully.");
-
-        _updateUsageSharedCount(item.id);
       }).catchError((error) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text("Failed to save item '${item.name}': $error")),
         );
       });
     }
-
-    Navigator.pop(context, selectedItems);
   }
 
-  void _updateUsageSharedCount(String itemId) async {
-    final itemDoc =
-        await _firestore.collection('sharedItems').doc(itemId).get();
-    if (itemDoc.exists) {
-      final currentUsageCount = itemDoc.data()?['usageCount'] ?? 0;
+  void saveSelectedItems(Map<String, Item> items, BuildContext context) {
+    final selectedItems = items.values.where((item) => item.isChecked).toList();
 
-      _firestore.collection('sharedItems').doc(itemId).update({
-        'usageCount': currentUsageCount + 1,
+    for (final item in selectedItems) {
+      // Simpan item ke personalItems di database
+      _firestore
+          .collection('parties')
+          .doc(partyId)
+          .collection('sharedItems')
+          .doc(item.id)
+          .set({
+        'name': item.name,
+        'total': item.total,
+        'isChecked': false,
       }).then((_) {
-        print("Updated usageCount for item ID $itemId successfully.");
+        print("Item '${item.name}' saved successfully.");
       }).catchError((error) {
-        print("Failed to update usageCount for item ID $itemId: $error");
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Failed to save item '${item.name}': $error")),
+        );
       });
-    } else {
-      print("Item not found with ID $itemId");
     }
   }
 

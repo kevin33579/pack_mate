@@ -1,6 +1,10 @@
 part of 'viewmodel.dart';
 
 class CarriedByViewModel {
+  final TextEditingController totalController = TextEditingController();
+  int? totalMax;
+  int? totalRemaining;
+
   Stream<List<Map<String, dynamic>>> getCarriers(
       String partyId, String itemId) {
     return FirebaseFirestore.instance
@@ -16,6 +20,42 @@ class CarriedByViewModel {
                   ...doc.data(),
                 })
             .toList());
+  }
+
+  void fetchTotalValues(
+      String partyId, String itemId, VoidCallback onUpdate) async {
+    FirebaseFirestore.instance
+        .collection('parties')
+        .doc(partyId)
+        .collection('sharedItems')
+        .doc(itemId)
+        .get()
+        .then((sharedItemSnapshot) {
+      if (sharedItemSnapshot.exists) {
+        totalMax = sharedItemSnapshot['total'];
+
+        FirebaseFirestore.instance
+            .collection('parties')
+            .doc(partyId)
+            .collection('sharedItems')
+            .doc(itemId)
+            .collection('carriedBy')
+            .get()
+            .then((providersSnapshot) {
+          int totalProvided = providersSnapshot.docs.fold<int>(
+            0,
+            (sum, doc) => sum + (doc['total'] as int),
+          );
+
+          totalRemaining = (totalMax ?? 0) - totalProvided;
+          onUpdate();
+        }).catchError((error) {
+          debugPrint("Error fetching total carried: $error");
+        });
+      }
+    }).catchError((error) {
+      debugPrint("Error fetching totalMax: $error");
+    });
   }
 
   void editCarrier(
@@ -51,11 +91,25 @@ class CarriedByViewModel {
             return Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                TextField(
-                  controller: totalController,
-                  decoration: const InputDecoration(labelText: 'Total'),
-                  keyboardType: TextInputType.number,
-                ),
+                totalRemaining != null
+                    ? DropdownButtonFormField<int>(
+                        decoration: const InputDecoration(labelText: 'Total'),
+                        // value: int.tryParse(totalController.text) ??
+                        //     1, // Default to 1 if value is invalid
+                        items: List.generate(
+                          totalRemaining!,
+                          (index) => DropdownMenuItem<int>(
+                            value: index + 1,
+                            child: Text((index + 1).toString()),
+                          ),
+                        ),
+                        onChanged: (int? newValue) {
+                          setState(() {
+                            totalController.text = newValue.toString();
+                          });
+                        },
+                      )
+                    : const CircularProgressIndicator(),
               ],
             );
           },
